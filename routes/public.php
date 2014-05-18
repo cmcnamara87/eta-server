@@ -35,4 +35,11 @@ $app->get('/setup', function() {
 	$user->password = md5('test');
 	R::store($user);
 
+	$user = R::dispense('user');
+	$user->email = 'ankith.konda@gmail.com';
+	$user->firstName = 'Ankith';
+	$user->lastName = 'Konda';
+	$user->password = md5('test');
+	R::store($user);
+
 });
