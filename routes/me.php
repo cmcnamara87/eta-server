@@ -30,6 +30,8 @@ $app->group('/me', function () use ($app) {
 	    $user = R::load('user', 3);
 		$location->user = $user;
 	    R::store($location);
+
+	    echo json_encode($location->export());
 	});
 
 	$app->get('/contacts/:contactId/eta', function($contactId) use ($app) {
