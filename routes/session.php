@@ -1,5 +1,9 @@
 <?php
 
+$app->get('/hello2', function() use ($app) {
+    echo '{"test_thing": "go now"}';
+});
+
 $authenticate = function ($app) {
     return function () use ($app) {
     	// Check there is a user id set
@@ -36,27 +40,15 @@ $app->post('/register', function() use ($app) {
 		'firstName' 	=> 'Craig',
 		'lastName'		=> 'McNamara',
 		'email'			=> 'cmcnamara87@gmail.com',
-		'income'		=> 1969.61,
-		'incomePeriod'	=> 14,
-		'timezone'		=> 'Australia/Brisbane'
 	);
 
-	// $userData = json_decode($app->request->getBody());
-	$userData = $sampleUserData;
+	$userData = json_decode($app->request->getBody());
+	// $userData = $sampleUserData;
 
 	$user = R::dispense('user');
 	$user->import($userData);
 	$user->processed = mktime(0,0,0);
 	R::store($user);
-
-	// Setup the change
-	$transaction = R::dispense('transaction');
-    $transaction->account = CHANGE_ACCOUNT;
-    $transaction->description = "Initial setup.";
-    $transaction->amount = 0;
-    $transaction->time = mktime(0,0,0);
-    $transaction->user = $user;
-    R::store($transaction);
 
 	echo json_encode($user->export(), JSON_NUMERIC_CHECK);
 });
