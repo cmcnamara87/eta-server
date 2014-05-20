@@ -31,6 +31,12 @@ $app->group('/users', function () use ($app) {
         echo json_encode($user, JSON_NUMERIC_CHECK);
     });
 
+    $app->post('/logout', function() use ($app) {
+        unset($_SESSION['userId']);
+    });
+    $app->get('/logout', function() use ($app) {
+        unset($_SESSION['userId']);
+    });
 
     /**
      * Creates a new user
@@ -48,8 +54,12 @@ $app->group('/users', function () use ($app) {
 
         $user = R::dispense('user');
         $user->import($userData);
+        $user->password = md5($user->password);
+        unset($user['password2']);
         R::store($user);
 
+        $_SESSION['userId'] = $user->id;
+        
         echo json_encode($user->export(), JSON_NUMERIC_CHECK);
     });
 });
