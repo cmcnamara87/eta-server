@@ -2,15 +2,21 @@
 date_default_timezone_set("Australia/Brisbane");
 
 // Restricted to logged in current user
-// $app->group('/me', $authenticate($app), function () use ($app) {
-$app->group('/me', function () use ($app) {
+$app->group('/me', $authenticate($app), function () use ($app) {
+// $app->group('/me', function () use ($app) {
 	$app->get('/hello', function() use ($app) {
-		echo '{"test_thing": "go now"}';
+		print_r($_SESSION);
+		die();
+		// echo '{"test_thing": "go now TEST"}';
 	});
 
 	$app->get('/contacts', function() use ($app) {
 		$users = R::findAll('user');
-		echo json_encode(R::exportAll($users));
+		$usersExported = R::exportAll($users);
+		foreach($usersExported as &$user) {
+			unset($user['ownLocation']);
+		}
+		echo json_encode($usersExported);
 	});
 
 	$app->get('/contacts/:contactId', function($contactId) use ($app) {
