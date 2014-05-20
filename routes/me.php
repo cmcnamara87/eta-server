@@ -10,6 +10,11 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 		// echo '{"test_thing": "go now TEST"}';
 	});
 
+	$app->get('/profile', function() {
+		$user = R::load('user', $_SESSION['userId']);
+		echo json_encode($user->export());
+	});
+
 	$app->get('/contacts', function() use ($app) {
 		$users = R::findAll('user');
 		$contacts = array();
@@ -36,8 +41,7 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 	    $location = R::dispense('location');
 
 	    $location->import($locationData);
-	    // @todo: put in session user
-	    $user = R::load('user', 1);
+	    $user = R::load('user', $_SESSION['userId']);
 		$location->user = $user;
 		$location->created = time();
 	    R::store($location);
@@ -48,12 +52,9 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 	$app->get('/contacts/:contactId/eta', function($contactId) use ($app) {
 
 		// Get the users location
-		// @todo: change user id
-		$contactLocation = new stdClass();
-		$contactLocation->latitude = -27.49610500195277;
-		$contactLocation->longitude = 153.00207000109367;
+		$contactLocation = R::findOne('location', ' user_id = :user_id ORDER BY created DESC LIMIT 1 ', array(':user_id' => $contactId));
 
-		$meLocation = R::findOne('location', ' user_id = :user_id ORDER BY created DESC LIMIT 1 ', array(':user_id' => 1));
+		$meLocation = R::findOne('location', ' user_id = :user_id ORDER BY created DESC LIMIT 1 ', array(':user_id' => $_SESSION['userId']));
 		// queen st mall
 		// $meLocation = new stdClass();
 		// $meLocation->latitude = -27.4673045983608;

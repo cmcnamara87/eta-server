@@ -9,6 +9,11 @@ $authenticate = function ($app) {
     	// Check there is a user id set
         if (!isset($_SESSION['userId'])) {
         	$app->halt(401, 'Login Required.');
+        } else {
+            $user = R::load('user', $_SESSION['userId']);
+            if($user->id == 0) {
+                $app->halt(401, 'Login Required.');
+            }
         }
     };
 };
@@ -21,9 +26,9 @@ $app->group('/users', function () use ($app) {
 
         $loginData = json_decode($app->request->getBody());
 
-        $user  = R::findOne( 'user', ' email = :email ', array(':email' => $loginData->email));
+        $user = R::findOne( 'user', ' email = :email ', array(':email' => $loginData->email));
 
-        if($user && $user->password == hash('md5', $loginData->password)) {
+        if($user->id != 0 && $user->password == hash('md5', $loginData->password)) {
             $_SESSION['userId'] = $user->id;
         } else {
             $app->halt('400', 'Incorrect email or password.');
@@ -59,7 +64,7 @@ $app->group('/users', function () use ($app) {
         R::store($user);
 
         $_SESSION['userId'] = $user->id;
-        
+
         echo json_encode($user->export(), JSON_NUMERIC_CHECK);
     });
 });
