@@ -12,11 +12,15 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 
 	$app->get('/contacts', function() use ($app) {
 		$users = R::findAll('user');
-		$usersExported = R::exportAll($users);
-		foreach($usersExported as &$user) {
-			unset($user['ownLocation']);
+		$contacts = array();
+		foreach($users as &$user) {
+			if($user->id != $_SESSION['userId']) {
+				$contact = $user->export();
+				unset($contact['ownLocation']);
+				$contacts[] = $contact;
+			}
 		}
-		echo json_encode($usersExported);
+		echo json_encode($contacts);
 	});
 
 	$app->get('/contacts/:contactId', function($contactId) use ($app) {
