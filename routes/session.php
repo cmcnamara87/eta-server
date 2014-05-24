@@ -6,6 +6,7 @@ $app->get('/hello2', function() use ($app) {
 
 $authenticate = function ($app) {
     return function () use ($app) {
+        // $_SESSION['userId'] = 1;
     	// Check there is a user id set
         if (!isset($_SESSION['userId'])) {
         	$app->halt(401, 'Login Required.');

@@ -15,6 +15,15 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 		echo json_encode($user->export());
 	});
 
+	$app->post('/device', function() use ($app) {
+		$deviceData = json_decode($app->request->getBody());
+		$user = R::load('user', $_SESSION['userId']);
+		$user->deviceId = $deviceData->id;
+		R::store($user);
+		echo json_encode($deviceData);
+		// echo json_encode($user->export());
+	});
+
 	$app->get('/contacts', function() use ($app) {
 		$users = R::findAll('user');
 		$contacts = array();
@@ -52,13 +61,19 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 	$app->get('/contacts/:contactId/eta', function($contactId) use ($app) {
 
 		// Get the users location
+		$contact = R::load('user', $contactId);
 		$contactLocation = R::findOne('location', ' user_id = :user_id ORDER BY created DESC LIMIT 1 ', array(':user_id' => $contactId));
+		// gold coast
+		$contactLocation = new stdClass();
+		$contactLocation->latitude = -28.0167;
+		$contactLocation->longitude = 153.4000;
 
+		$me = R::load('user', $_SESSION['userId']);
 		$meLocation = R::findOne('location', ' user_id = :user_id ORDER BY created DESC LIMIT 1 ', array(':user_id' => $_SESSION['userId']));
 		// queen st mall
-		// $meLocation = new stdClass();
-		// $meLocation->latitude = -27.4673045983608;
-		// $meLocation->longitude = 153.0282677023206;
+		$meLocation = new stdClass();
+		$meLocation->latitude = -27.4673045983608;
+		$meLocation->longitude = 153.0282677023206;
 	
 		$url = "http://maps.googleapis.com/maps/api/distancematrix/json?origins={$contactLocation->latitude},{$contactLocation->longitude}&destinations={$meLocation->latitude},{$meLocation->longitude}&mode=driving&sensor=false";
 		$distanceMatrix = json_decode(file_get_contents($url));
@@ -70,7 +85,28 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 		$eta->suburb = "St Lucia";
 		$eta->time = $timeSeconds;
 
+		// Send push notification if we know everyones device id
+		// and its not an update request
+		if($contact->deviceId && $me->deviceId && !$app->request()->get('update')) {
+			pwCall('createMessage', 
+				array(
+			    	'application' => PW_APPLICATION,
+			    	'auth' => PW_AUTH,
+			    	'notifications' => array(
+				        array(
+				                'send_date' => 'now',
+				                'content' => $me->name . ' checked your ETA.',
+				                'devices' => array(
+	              					 $contact->deviceId
+	            				),
+				        )
+				    )
+			    )
+			);
+		} 
+
 		echo json_encode($eta);
+
 	});
 
 	
