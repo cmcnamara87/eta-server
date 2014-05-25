@@ -6,15 +6,20 @@ $app->get('/hello2', function() use ($app) {
 
 $authenticate = function ($app) {
     return function () use ($app) {
-        // $_SESSION['userId'] = 1;
-    	// Check there is a user id set
-        if (!isset($_SESSION['userId'])) {
-        	$app->halt(401, 'Login Required.');
-        } else {
-            $user = R::load('user', $_SESSION['userId']);
+        
+    	// Check there is a user id and email set
+        if (isset($_SESSION['userId']) && isset($_SESSION['userEmail'])) {
+        	$user = R::findOne('user', ' user_id = :user_id AND email = :email LIMIT 1 ', 
+                array(
+                    ':user_id' => $_SESSION['userId'], 
+                    ':email' => $_SESSION['userEmail']
+                )
+            );
             if($user->id == 0) {
                 $app->halt(401, 'Login Required.');
             }
+        } else {
+            $app->halt(401, 'Login Required.');
         }
     };
 };
@@ -31,6 +36,7 @@ $app->group('/users', function () use ($app) {
 
         if($user->id != 0 && $user->password == hash('md5', $loginData->password)) {
             $_SESSION['userId'] = $user->id;
+            $_SESSION['userEmail'] = $user->email;
         } else {
             $app->halt('400', 'Incorrect email or password.');
         }
