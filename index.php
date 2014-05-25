@@ -7,6 +7,7 @@ $app = new \Slim\Slim(array(
     'debug' => true
 ));
 
+require 'push/push.php';
 
 // Load all the Slim stuff
 // Middleware

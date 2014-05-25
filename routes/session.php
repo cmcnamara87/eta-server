@@ -6,9 +6,20 @@ $app->get('/hello2', function() use ($app) {
 
 $authenticate = function ($app) {
     return function () use ($app) {
-    	// Check there is a user id set
-        if (!isset($_SESSION['userId'])) {
-        	$app->halt(401, 'Login Required.');
+        
+    	// Check there is a user id and email set
+        if (isset($_SESSION['userId']) && isset($_SESSION['userEmail'])) {
+        	$user = R::findOne('user', ' user_id = :user_id AND email = :email LIMIT 1 ', 
+                array(
+                    ':user_id' => $_SESSION['userId'], 
+                    ':email' => $_SESSION['userEmail']
+                )
+            );
+            if($user->id == 0) {
+                $app->halt(401, 'Login Required.');
+            }
+        } else {
+            $app->halt(401, 'Login Required.');
         }
     };
 };
@@ -21,16 +32,23 @@ $app->group('/users', function () use ($app) {
 
         $loginData = json_decode($app->request->getBody());
 
-        $user  = R::findOne( 'user', ' email = :email ', array(':email' => $loginData->email));
+        $user = R::findOne( 'user', ' email = :email ', array(':email' => $loginData->email));
 
-        if($user && $user->password == hash('md5', $loginData->password)) {
+        if($user->id != 0 && $user->password == hash('md5', $loginData->password)) {
             $_SESSION['userId'] = $user->id;
+            $_SESSION['userEmail'] = $user->email;
         } else {
             $app->halt('400', 'Incorrect email or password.');
         }
         echo json_encode($user, JSON_NUMERIC_CHECK);
     });
 
+    $app->post('/logout', function() use ($app) {
+        unset($_SESSION['userId']);
+    });
+    $app->get('/logout', function() use ($app) {
+        unset($_SESSION['userId']);
+    });
 
     /**
      * Creates a new user
@@ -48,7 +66,11 @@ $app->group('/users', function () use ($app) {
 
         $user = R::dispense('user');
         $user->import($userData);
+        $user->password = md5($user->password);
+        unset($user['password2']);
         R::store($user);
+
+        $_SESSION['userId'] = $user->id;
 
         echo json_encode($user->export(), JSON_NUMERIC_CHECK);
     });
