@@ -1,0 +1,7 @@
+{
+	"database": {
+		"dbname": "eta-db",
+		"username": "eta-user",
+		"password": "3t4p4ssw0rd!"
+	}
+}

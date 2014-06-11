@@ -19,6 +19,9 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 		echo json_encode($user->export());
 	});
 
+	/**
+	 * Stores a users device id
+	 */
 	$app->post('/device', function() use ($app) {
 		$deviceData = json_decode($app->request->getBody());
 		$user = R::load('user', $_SESSION['userId']);
@@ -28,20 +31,49 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 		// echo json_encode($user->export());
 	});
 
-	$app->get('/contacts', function() use ($app) {
-		$dbContacts = R::find( 'user', ' id != :user_id ', array(':user_id' => $_SESSION['userId']));
+	$app->get('/users', function() use ($app) {
+		$name = $app->request->get('name');
+		if(!$name) {
+			// Bad request, name needed
+			$app->halt(400, 'GET parameter "name" must be specified');	
+		}
+
+		$users = R::find( 'user', ' id != :user_id AND name LIKE :name', array(
+			':user_id' => $_SESSION['userId'],
+			':name' => '%' . $name . '%'
+		));
 
 		$contacts = array();
-		foreach($dbContacts as $dbContact) {
+		foreach($users as $dbContact) {
 			$contact = new stdClass();
 			foreach($dbContact as $key => $value) {
-				if($key != 'password') {
+				if($key != 'password' && $key != 'device_id' && $key != 'email') {
 					$contact->{$key} = $value;	
 				}
+				if($key == 'email') {
+					$contact->image = "http://www.gravatar.com/avatar/" . md5(strtolower(trim($value)));		
+				}
 			}
-			$contact->image = "http://www.gravatar.com/avatar/" . md5(strtolower(trim($contact->email)));
+			
 			$contacts[] = $contact;
 		}
+
+		echo json_encode($contacts,  JSON_NUMERIC_CHECK);
+	});
+
+	$app->post('/users/:userId/request', function($userId) use ($app) {
+		$contact = R::dispense('contact');
+		$contact->fromUserId = $_SESSION['userId'];
+		$contact->toUserId = $userId;
+		$contact->status = 0;
+		R::store($contact);
+	});
+
+	/**
+	 * Gets all contacts
+	 */
+	$app->get('/contacts', function() use ($app) {
+		$contacts = getContacts();
 
 		$meLocation = R::findOne('location', ' user_id = :user_id ORDER BY created DESC LIMIT 1 ', array(':user_id' => $_SESSION['userId']));
 
@@ -263,6 +295,30 @@ function calculateStatus($contact) {
 
 function getPing($contact) {
 
+}
+
+function getContacts() {
+	$dbContacts = R::find( 'contact', ' to_user_id = :user_id OR from_user_id = :user_id', array(':user_id' => $_SESSION['userId']));
+
+	$contacts = array();
+	foreach($dbContacts as $dbContact) {
+
+		if($dbContact->toUserId !== $_SESSION['userId']) {
+			$user = R::load('user', $dbContact->toUserId);
+		} else {
+			$user = R::load('user', $dbContact->fromUserId);
+		}
+
+		$contact = new stdClass();
+		foreach($user as $key => $value) {
+			if($key != 'password' && $key != 'device_id') {
+				$contact->{$key} = $value;	
+			}
+		}
+		$contact->image = "http://www.gravatar.com/avatar/" . md5(strtolower(trim($contact->email)));
+		$contacts[] = $contact;
+	}
+	return $contacts;
 }
 
 function calculateEtas($contacts) {
