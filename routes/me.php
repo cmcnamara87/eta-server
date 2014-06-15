@@ -19,6 +19,22 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 		echo json_encode($user->export());
 	});
 
+	$app->post('/locations', function() use ($app) {
+		// Get the post data
+		$locationData = json_decode($app->request->getBody());
+
+	    //Create location
+	    $location = R::dispense('location');
+
+	    $location->import($locationData);
+	    $user = R::load('user', $_SESSION['userId']);
+		$location->user = $user;
+		$location->created = time();
+	    R::store($location);
+
+	    echo json_encode($location->export(), JSON_NUMERIC_CHECK);
+	});
+
 	/**
 	 * Stores a users device id
 	 */
@@ -38,27 +54,42 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 			$app->halt(400, 'GET parameter "name" must be specified');	
 		}
 
-		$users = R::find( 'user', ' id != :user_id AND name LIKE :name', array(
+		$dbUsers = R::find( 'user', ' id != :user_id AND name LIKE :name', array(
 			':user_id' => $_SESSION['userId'],
 			':name' => '%' . $name . '%'
 		));
 
-		$contacts = array();
-		foreach($users as $dbContact) {
-			$contact = new stdClass();
-			foreach($dbContact as $key => $value) {
+		$users = array();
+		foreach($dbUsers as $dbUser) {
+			$user = new stdClass();
+
+			$contact = R::findOne('contact', ' (from_user_id = :userId AND to_user_id = :currentUserId) OR (from_user_id = :currentUserId AND to_user_id = :userId) ', 
+				array(
+					':userId' => $dbUser->id,
+					':currentUserId' => $_SESSION['userId'],
+				)
+			);
+			if($contact && $contact->id != 0) {
+				if ($contact->status != 0) {
+					$user->status = 'accepted';
+				} else if ($contact->fromUserId == $_SESSION['userId']) {
+					$user->status = 'sent';
+				} else {
+					$user->status = 'requested';
+				}
+			} 
+			foreach($dbUser as $key => $value) {
 				if($key != 'password' && $key != 'device_id' && $key != 'email') {
-					$contact->{$key} = $value;	
+					$user->{$key} = $value;	
 				}
 				if($key == 'email') {
-					$contact->image = "http://www.gravatar.com/avatar/" . md5(strtolower(trim($value)));		
+					$user->image = "http://www.gravatar.com/avatar/" . md5(strtolower(trim($value)));		
 				}
 			}
-			
-			$contacts[] = $contact;
+			$users[] = $user;
 		}
 
-		echo json_encode($contacts,  JSON_NUMERIC_CHECK);
+		echo json_encode($users,  JSON_NUMERIC_CHECK);
 	});
 
 	$app->post('/users/:userId/request', function($userId) use ($app) {
@@ -74,6 +105,17 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 	 */
 	$app->get('/contacts', function() use ($app) {
 		$contacts = getContacts();
+
+		$type = $app->request->get('type');
+		if($type && $type == 'requested') {
+			$contacts = array_values(array_filter($contacts, function ($contact) {
+				return $contact->status == 'requested';
+			}));
+		} else if($type && $type == 'accepted') {
+			$contacts = array_values(array_filter($contacts, function ($contact) {
+				return $contact->status == 'accepted';
+			}));
+		}
 
 		$meLocation = R::findOne('location', ' user_id = :user_id ORDER BY created DESC LIMIT 1 ', array(':user_id' => $_SESSION['userId']));
 
@@ -150,6 +192,11 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 		echo json_encode($pings, JSON_NUMERIC_CHECK);			
 	});
 
+	$app->get('/contacts/:contactId', function($contactId) use ($app) {
+		$user = R::load('user', $contactId);
+		echo json_encode($user->export());
+	});
+
 	$app->get('/contacts/:contactId/eta', function($contactId) use ($app) {
 		$contact = R::load('user', $contactId);
 
@@ -175,28 +222,6 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 		// 	);
 		// } 
 		echo json_encode($etas[0], JSON_NUMERIC_CHECK);
-	});
-
-
-	$app->get('/contacts/:contactId', function($contactId) use ($app) {
-		$user = R::load('user', $contactId);
-		echo json_encode($user->export());
-	});
-
-	$app->post('/locations', function() use ($app) {
-		// Get the post data
-		$locationData = json_decode($app->request->getBody());
-
-	    //Create location
-	    $location = R::dispense('location');
-
-	    $location->import($locationData);
-	    $user = R::load('user', $_SESSION['userId']);
-		$location->user = $user;
-		$location->created = time();
-	    R::store($location);
-
-	    echo json_encode($location->export(), JSON_NUMERIC_CHECK);
 	});
 
 
@@ -266,16 +291,25 @@ $app->group('/me', $authenticate($app), function () use ($app) {
 		$ping->created = time();
 		R::store($ping);
 	});
-
-	
-
-	
-
-	$app->get('/users', function() {
-		$users = R::findAll('user');
-		echo json_encode(R::exportAll($users));
+	$app->post('/contacts/:contactId/accept', function($contactId) use ($app) {
+		$contact = R::findOne('contact', ' from_user_id = :contactId AND to_user_id = :currentUserId ', 
+			array(
+				':contactId' => $contactId,
+				':currentUserId' => $_SESSION['userId'],
+			)
+		);
+		$contact->status = 1;
+		R::store($contact);
 	});
-
+	$app->post('/contacts/:contactId/reject', function($contactId) use ($app) {
+		$contact = R::findOne('contact', ' from_user_id = :contactId AND to_user_id = :currentUserId ', 
+			array(
+				':contactId' => $contactId,
+				':currentUserId' => $_SESSION['userId'],
+			)
+		);
+		R::trash($contact);
+	});
 	$app->post('/locations', function() {
 		// {latitude: 1, longitude: 1}
 		$location = R::dispense('location');
@@ -302,6 +336,7 @@ function getContacts() {
 
 	$contacts = array();
 	foreach($dbContacts as $dbContact) {
+		$contact = new stdClass();
 
 		if($dbContact->toUserId !== $_SESSION['userId']) {
 			$user = R::load('user', $dbContact->toUserId);
@@ -309,7 +344,15 @@ function getContacts() {
 			$user = R::load('user', $dbContact->fromUserId);
 		}
 
-		$contact = new stdClass();
+		if ($dbContact->status != 0) {
+			$contact->status = 'accepted';
+		} else if ($dbContact->fromUserId == $_SESSION['userId']) {
+			$contact->status = 'sent';
+		 // = $dbContact->status;
+		} else {
+			$contact->status = 'requested';
+		}
+
 		foreach($user as $key => $value) {
 			if($key != 'password' && $key != 'device_id') {
 				$contact->{$key} = $value;	
