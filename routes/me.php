@@ -3,7 +3,7 @@ date_default_timezone_set("Australia/Brisbane");
 define('PING_NEARBY_DISTANCE_METERS', 500);
 define('PING_TIMEOUT_MINUTES', 30);
 define('PING_PUSH_TIMEOUT_MINUTES', 1);
-define('LOCATION_TIMEOUT_MINUTES', 10);
+define('LOCATION_TIMEOUT_MINUTES', 5);
 
 // Restricted to logged in current user
 $app->group('/me', $authenticate($app), function () use ($app) {
